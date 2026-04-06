@@ -86,6 +86,16 @@ const WASH_DATA = {
 
 const ITEM_KEYS = Object.keys(WASH_DATA);
 
+// ─── Responsive scale ────────────────────────────────────────────────────────
+// Desktop (≥836px): scl = 1 → identiek aan origineel
+// Mobiel: alles proportioneel kleiner, logische ruimte blijft 820×580
+let scl = 1;
+const LOG_W = 820, LOG_H = 580;
+
+function computeScl() {
+  scl = min(windowWidth - 16, LOG_W) / LOG_W;
+}
+
 // ─── State ────────────────────────────────────────────────────────────────────
 let screenState = 'home'; // home | detail | mama
 let currentItem = null;
@@ -98,7 +108,8 @@ let titleWobble = 0;
 
 // ─── Setup ────────────────────────────────────────────────────────────────────
 function setup() {
-  let cnv = createCanvas(820, 580);
+  computeScl();
+  let cnv = createCanvas(LOG_W * scl, LOG_H * scl);
   cnv.parent('canvas-container');
   textFont('Georgia');
 
@@ -116,6 +127,8 @@ function setup() {
 // ─── Draw ─────────────────────────────────────────────────────────────────────
 function draw() {
   background(10, 18, 35);
+  scale(scl);  // logical space = 820×580 for all screens
+
   drawRain();
 
   if (screenState === 'home')   drawHome();
@@ -551,7 +564,15 @@ function mouseMoved() {
   cursor(overBtn ? HAND : ARROW);
 }
 
+// ─── Window resize (orientation change on mobile) ─────────────────────────────
+function windowResized() {
+  computeScl();
+  resizeCanvas(LOG_W * scl, LOG_H * scl);
+}
+
 // ─── Util ─────────────────────────────────────────────────────────────────────
 function isHover(x, y, w, h) {
-  return mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h;
+  const mx = mouseX / scl;
+  const my = mouseY / scl;
+  return mx >= x && mx <= x + w && my >= y && my <= y + h;
 }
