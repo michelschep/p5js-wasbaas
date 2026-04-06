@@ -24,7 +24,7 @@ const WASH_DATA = {
     withWhat: 'Broeken, ondergoed (zelfde kleur)',
     notWith: 'Truien, handdoeken',
     colorTip: 'Wit bij wit · Kleur bij kleur · NOOIT mengen!',
-    funFact: '"Eerst controleren op vlekken. Ja, die ene ook."',
+    funFact: '"Rood sokje erbij = roze shirt voor eeuwig. Controleer altijd wat erin zit."',
     mood: 'sad'
   },
   trui: {
