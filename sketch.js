@@ -93,9 +93,19 @@ let scl = 1;
 let isMobile = false;
 const LOG_W = 820, LOG_H = 580;
 
+// Geeft de écht zichtbare hoogte op iOS Safari (elimineert address bar / tab bar gok)
+function safeViewH() {
+  if (window.visualViewport) return floor(window.visualViewport.height);
+  return windowHeight;
+}
+function safeViewW() {
+  if (window.visualViewport) return floor(window.visualViewport.width);
+  return windowWidth;
+}
+
 function computeScl() {
-  isMobile = windowWidth < 600;
-  scl = isMobile ? 1 : min(windowWidth - 16, LOG_W) / LOG_W;
+  isMobile = safeViewW() < 600;
+  scl = isMobile ? 1 : min(safeViewW() - 16, LOG_W) / LOG_W;
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -113,12 +123,17 @@ function setup() {
   computeScl();
   let cnv;
   if (isMobile) {
-    cnv = createCanvas(windowWidth, windowHeight);
+    cnv = createCanvas(safeViewW(), safeViewH());
   } else {
     cnv = createCanvas(LOG_W * scl, LOG_H * scl);
   }
   cnv.parent('canvas-container');
   textFont('Georgia');
+
+  // iOS Safari: visualViewport resize fires when address bar hides/shows
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', () => windowResized());
+  }
 
   for (let i = 0; i < 90; i++) {
     rainDrops.push({
@@ -582,7 +597,7 @@ function mouseMoved() {
 function windowResized() {
   computeScl();
   if (isMobile) {
-    resizeCanvas(windowWidth, windowHeight);
+    resizeCanvas(safeViewW(), safeViewH());
   } else {
     resizeCanvas(LOG_W * scl, LOG_H * scl);
   }
@@ -642,9 +657,15 @@ function drawMobileTitle() {
 
   fill(190, 215, 255);
   textAlign(CENTER);
-  textSize(17);
   textFont('Georgia');
-  text('🧺 Was-hulp voor de Zielige Man', width / 2, 28);
+  if (width < 380) {
+    // Twee regels op kleine schermen
+    textSize(13);
+    text('🧺 Was-hulp voor de Zielige Man', width / 2, 17);
+  } else {
+    textSize(15);
+    text('🧺  Was-hulp voor de Zielige Man  🧺', width / 2, 28);
+  }
 }
 
 function drawMobileNavBar() {
