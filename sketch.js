@@ -87,13 +87,15 @@ const WASH_DATA = {
 const ITEM_KEYS = Object.keys(WASH_DATA);
 
 // ─── Responsive scale ────────────────────────────────────────────────────────
-// Desktop (≥836px): scl = 1 → identiek aan origineel
-// Mobiel: alles proportioneel kleiner, logische ruimte blijft 820×580
+// Desktop (≥600px): scl schaalt de 820×580 canvas mee
+// Mobile (<600px):  eigen portrait-layout, volledige scherm
 let scl = 1;
+let isMobile = false;
 const LOG_W = 820, LOG_H = 580;
 
 function computeScl() {
-  scl = min(windowWidth - 16, LOG_W) / LOG_W;
+  isMobile = windowWidth < 600;
+  scl = isMobile ? 1 : min(windowWidth - 16, LOG_W) / LOG_W;
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -109,7 +111,12 @@ let titleWobble = 0;
 // ─── Setup ────────────────────────────────────────────────────────────────────
 function setup() {
   computeScl();
-  let cnv = createCanvas(LOG_W * scl, LOG_H * scl);
+  let cnv;
+  if (isMobile) {
+    cnv = createCanvas(windowWidth, windowHeight);
+  } else {
+    cnv = createCanvas(LOG_W * scl, LOG_H * scl);
+  }
   cnv.parent('canvas-container');
   textFont('Georgia');
 
@@ -127,8 +134,13 @@ function setup() {
 // ─── Draw ─────────────────────────────────────────────────────────────────────
 function draw() {
   background(10, 18, 35);
-  scale(scl);  // logical space = 820×580 for all screens
 
+  if (isMobile) {
+    drawMobileUI();
+    return;
+  }
+
+  scale(scl);  // logical space = 820×580 for desktop
   drawRain();
 
   if (screenState === 'home')   drawHome();
@@ -519,7 +531,9 @@ function drawButton(x, y, w, h, lbl) {
 
 // ─── Mouse ────────────────────────────────────────────────────────────────────
 function mousePressed() {
-  // Mama button
+  if (isMobile) { mobileInteract(); return; }
+
+  // Desktop interactions below
   if (isHover(MAMA_BTN.x, MAMA_BTN.y, MAMA_BTN.w, MAMA_BTN.h)) {
     screenState = 'mama';
     mamaFrame = 0;
@@ -567,12 +581,309 @@ function mouseMoved() {
 // ─── Window resize (orientation change on mobile) ─────────────────────────────
 function windowResized() {
   computeScl();
-  resizeCanvas(LOG_W * scl, LOG_H * scl);
+  if (isMobile) {
+    resizeCanvas(windowWidth, windowHeight);
+  } else {
+    resizeCanvas(LOG_W * scl, LOG_H * scl);
+  }
 }
 
+// ─── Mobile UI ────────────────────────────────────────────────────────────────
+// Volledige portrait-layout voor iPhone.
+// Layout zones (alle maten in echte pixels, isMobile=true dus scl=1):
+//   navH   = 2 rijen item-knoppen onderaan
+//   mamaH  = Bel Mama knop
+//   titleH = Titelbalk bovenaan
+//   contentY..contentBot = beschikbaar voor inhoud
+
+const M_TITLE_H = 44;
+const M_MAMA_H  = 52;
+const M_NAV_ROWS = 2, M_NAV_COLS = 4;
+
+function mNavH() {
+  return (M_NAV_ROWS * mBtnH()) + ((M_NAV_ROWS - 1) * 5) + 10;
+}
+function mBtnW() { return floor((width - (M_NAV_COLS + 1) * 5) / M_NAV_COLS); }
+function mBtnH() { return min(68, floor((height * 0.22) / M_NAV_ROWS)); }
+function mContentTop() { return M_TITLE_H; }
+function mContentBot() { return height - M_MAMA_H - mNavH(); }
+function mContentH()   { return mContentBot() - mContentTop(); }
+
+function drawMobileUI() {
+  drawMobileRain();
+  drawMobileTitle();
+  drawMobileNavBar();
+  drawMobileMamaBtn();
+
+  if (screenState === 'home')        drawMobileHome();
+  else if (screenState === 'detail') drawMobileDetail();
+  else if (screenState === 'mama')   drawMobileMama();
+}
+
+function drawMobileRain() {
+  for (let r of rainDrops) {
+    stroke(80, 120, 210, r.a);
+    strokeWeight(1);
+    line(r.x, r.y, r.x - 1, r.y + r.len);
+    r.y += r.spd;
+    if (r.y > height) { r.y = -20; r.x = random(width); }
+  }
+  noStroke();
+}
+
+function drawMobileTitle() {
+  fill(12, 22, 45);
+  noStroke();
+  rect(0, 0, width, M_TITLE_H);
+  stroke(40, 65, 140, 180);
+  strokeWeight(1);
+  line(0, M_TITLE_H, width, M_TITLE_H);
+  noStroke();
+
+  fill(190, 215, 255);
+  textAlign(CENTER);
+  textSize(17);
+  textFont('Georgia');
+  text('🧺 Was-hulp voor de Zielige Man', width / 2, 28);
+}
+
+function drawMobileNavBar() {
+  const bw = mBtnW(), bh = mBtnH();
+  const navY = mContentBot() + M_MAMA_H;
+  const gap = 5;
+
+  fill(10, 18, 38);
+  noStroke();
+  rect(0, navY - 6, width, height - navY + 6);
+  stroke(40, 60, 120, 180);
+  strokeWeight(1);
+  line(0, navY - 6, width, navY - 6);
+  noStroke();
+
+  for (let i = 0; i < ITEM_KEYS.length; i++) {
+    const row = floor(i / M_NAV_COLS);
+    const col = i % M_NAV_COLS;
+    const bx = gap + col * (bw + gap);
+    const by = navY + row * (bh + gap);
+
+    const sel = currentItem === ITEM_KEYS[i];
+    const hov = isHover(bx, by, bw, bh);
+
+    if (sel)      fill(55, 88, 190);
+    else if (hov) fill(38, 62, 140);
+    else          fill(20, 34, 72);
+    stroke(sel ? [115, 155, 255] : [50, 75, 145]);
+    strokeWeight(sel ? 2 : 1);
+    rect(bx, by, bw, bh, 8);
+
+    noStroke();
+    textAlign(CENTER);
+    textSize(sel ? 28 : 24);
+    text(WASH_DATA[ITEM_KEYS[i]].icon, bx + bw / 2, by + bh * 0.52);
+
+    fill(sel ? 255 : 160);
+    textSize(10);
+    text(WASH_DATA[ITEM_KEYS[i]].name, bx + bw / 2, by + bh - 6);
+  }
+}
+
+function drawMobileMamaBtn() {
+  const by = mContentBot();
+  const hov = isHover(0, by, width, M_MAMA_H);
+  fill(hov ? [200, 30, 30] : [140, 15, 15]);
+  stroke(220, 70, 70);
+  strokeWeight(1);
+  rect(0, by, width, M_MAMA_H);
+  noStroke();
+  fill(255, 190, 190);
+  textAlign(CENTER);
+  textSize(16);
+  text('🚨  Bel Mama  🚨', width / 2, by + M_MAMA_H / 2 + 6);
+}
+
+function drawMobileHome() {
+  const cy = mContentTop() + mContentH() * 0.42;
+  drawSadMan(width / 2, cy, 'sad', min(1.1, mContentH() / 330));
+
+  fill(140, 170, 230);
+  textAlign(CENTER);
+  textSize(15);
+  noStroke();
+  text('⬇  Tik op een kledingstuk  ⬇', width / 2, mContentBot() - 18);
+}
+
+function drawMobileDetail() {
+  if (!currentItem) return;
+  const d = WASH_DATA[currentItem];
+  const PAD  = 10;
+  const cTop = mContentTop() + 6;
+  const cBot = mContentBot() - 6;
+  const cW   = width - PAD * 2;
+
+  // Item header
+  fill(210, 230, 255);
+  textAlign(CENTER);
+  textSize(20);
+  noStroke();
+  text(d.icon + '  ' + d.name, width / 2, cTop + 22);
+
+  // Temperature badge — big and prominent
+  const tBadgeY = cTop + 36;
+  const tBadgeH = 52;
+  const tClr = d.temp >= 60 ? [170, 40, 40] : d.temp >= 40 ? [170, 100, 20] : [30, 110, 60];
+  fill(...tClr);
+  stroke(...tClr.map(v => min(255, v + 60)));
+  strokeWeight(1);
+  rect(PAD, tBadgeY, cW, tBadgeH, 10);
+  noStroke();
+  fill(255, 245, 220);
+  textAlign(CENTER);
+  textSize(30);
+  text(d.temp + '°C', width * 0.28, tBadgeY + 35);
+  fill(255, 235, 200);
+  textSize(14);
+  textAlign(LEFT);
+  text(d.program, width * 0.48, tBadgeY + 20);
+  fill(255, 220, 180);
+  textSize(12);
+  text('🔄 programma', width * 0.48, tBadgeY + 40);
+
+  // Info rows
+  const rows = [
+    { icon: '🧴', label: 'Wasmiddel', val: d.soap },
+    { icon: '💨', label: 'Drogen',    val: d.drying },
+    { icon: '✅', label: 'Mag samen', val: d.withWhat },
+    { icon: '❌', label: 'Nooit',     val: d.notWith },
+    { icon: '🎨', label: 'Kleur',     val: d.colorTip },
+  ];
+
+  const rowAreaTop = tBadgeY + tBadgeH + 6;
+  const rowAreaH   = cBot - rowAreaTop - 38;
+  const rowH       = floor(rowAreaH / rows.length);
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const ry = rowAreaTop + i * rowH;
+    const alt = i % 2 === 0;
+
+    fill(alt ? [16, 30, 60, 200] : [22, 40, 78, 200]);
+    noStroke();
+    rect(PAD, ry, cW, rowH - 2, 6);
+
+    fill(120, 155, 230);
+    textAlign(LEFT);
+    textSize(13);
+    text(r.icon + ' ' + r.label + ':', PAD + 10, ry + rowH * 0.42);
+
+    fill(228, 240, 255);
+    textSize(12);
+    mDrawWrapped(r.val, PAD + 10, ry + rowH * 0.42 + 15, cW - 20);
+  }
+
+  // Fun fact strip
+  const ffY = cBot - 32;
+  fill(255, 200, 60, 200);
+  textAlign(CENTER);
+  textSize(11);
+  noStroke();
+  text(d.funFact, width / 2, ffY);
+}
+
+function mDrawWrapped(txt, x, y, maxW) {
+  const words = txt.split(' ');
+  let line = '';
+  let ly = y;
+  for (let wd of words) {
+    const test = line + wd + ' ';
+    if (textWidth(test) > maxW && line !== '') {
+      text(line.trim(), x, ly);
+      line = wd + ' ';
+      ly += 13;
+    } else {
+      line = test;
+    }
+  }
+  if (line.trim()) text(line.trim(), x, ly);
+}
+
+function drawMobileMama() {
+  mamaFrame++;
+  const pulse = sin(mamaFrame * 0.1) * 6;
+  const cy = mContentTop() + mContentH() * 0.38;
+
+  noStroke();
+  textAlign(CENTER);
+  textSize(80 + pulse);
+  text('📱', width / 2, cy);
+
+  textSize(20);
+  fill(255, 180, 180);
+  text('Je belt mama...', width / 2, cy + 60);
+
+  textSize(13);
+  fill(150, 180, 240);
+  const dots = '.'.repeat(floor(mamaFrame / 18) % 4);
+  text('Verbinden' + dots, width / 2, cy + 88);
+
+  textSize(15);
+  fill(255, 220, 100);
+  text('"Lieverd, doe je het op 40 graden?', width / 2, cy + 118);
+  text('Dan komt het goed!"', width / 2, cy + 138);
+
+  textSize(12);
+  fill(120, 150, 200);
+  text('"En leeg je zakken een volgende keer."', width / 2, cy + 165);
+
+  // Back — tap anywhere in content to go back
+  fill(80, 100, 170, 140);
+  textSize(11);
+  text('(tik ergens om terug te gaan)', width / 2, mContentBot() - 18);
+}
+
+// ─── Mobile touch support ─────────────────────────────────────────────────────
+function touchStarted() {
+  if (isMobile) {
+    mobileInteract();
+    return false;  // prevent iOS scroll
+  }
+}
+function touchMoved() { return isMobile ? false : true; }
+
+function mobileInteract() {
+  // Mama screen: tap anywhere in content = back
+  if (screenState === 'mama') {
+    if (mouseY < mContentBot()) {
+      screenState = currentItem ? 'detail' : 'home';
+      return;
+    }
+  }
+
+  // Mama button
+  if (isHover(0, mContentBot(), width, M_MAMA_H)) {
+    screenState = 'mama';
+    mamaFrame = 0;
+    return;
+  }
+
+  // Nav bar items
+  const bw = mBtnW(), bh = mBtnH();
+  const navY = mContentBot() + M_MAMA_H;
+  const gap = 5;
+  for (let i = 0; i < ITEM_KEYS.length; i++) {
+    const row = floor(i / M_NAV_COLS);
+    const col = i % M_NAV_COLS;
+    const bx = gap + col * (bw + gap);
+    const by = navY + row * (bh + gap);
+    if (isHover(bx, by, bw, bh)) {
+      currentItem = ITEM_KEYS[i];
+      screenState = 'detail';
+      return;
+    }
+  }
+}
 // ─── Util ─────────────────────────────────────────────────────────────────────
 function isHover(x, y, w, h) {
-  const mx = mouseX / scl;
-  const my = mouseY / scl;
+  const mx = isMobile ? mouseX : mouseX / scl;
+  const my = isMobile ? mouseY : mouseY / scl;
   return mx >= x && mx <= x + w && my >= y && my <= y + h;
 }
